@@ -325,6 +325,46 @@
   font-size: 16px;
   color: #1976d2;
 }
+
+.flow-step span {
+  cursor: pointer;
+  display: inline-block;
+  margin-bottom: 5px;
+}
+
+.flow-step span:hover {
+  color: #1565c0;
+}
+
+.flow-step div {
+  margin-left: 20px;
+  border-left: 2px solid #90caf9;
+  padding-left: 10px;
+}
+.diagram-zoom-target {
+  box-shadow: 0 0 20px 4px #90caf9;
+  border: 2px solid #1976d2;
+  border-radius: 8px;
+  transition: box-shadow 0.3s, border 0.3s;
+}
+
+#diagram:fullscreen {
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  overflow: hidden;
+  border: none;
+  border-radius: 0;
+}
+#diagram:fullscreen #fullscreenPlayBtn {
+  display: block;
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  z-index: 101;
+}
+
+
 </style>
 </head>
 <body>
@@ -343,11 +383,22 @@
     <button id="addFlowBtn">Add Data Flow</button>
     <!-- Add inside your .controls div -->
     <button id="playBtn" type="button">▶ Play</button>
+    <!-- Add this button near the diagram container -->
+    <button id="fullscreenBtn" title="Toggle Full Screen" style="position: absolute; top: 10px; right: 10px; z-index: 100; background: #1976d2; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);">
+     ⛶
+    </button>
     <button id="showAllBtn" type="button">Show All</button>  
 <button id="backToNormalBtn" type="button">Back to Normal</button>
 </div>
   <div class="diagram" id="diagram" style="position:relative; min-width:600px;">
     <!-- Diagram will be rendered here -->
+    <button id="fullscreenPlayBtn" title="Play Animation" 
+    style="position: absolute; bottom: 20px; right: 20px; z-index: 101; 
+           background: #4caf50; color: white; border: none; 
+           border-radius: 50%; width: 50px; height: 50px; font-size: 20px; 
+           cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);">
+    ▶
+  </button>
   </div>
   <!-- Add after your .diagram div -->
 <div class="flow-panel" id="flowPanel"></div>
@@ -361,6 +412,8 @@
     let currentLevel = [participants]; // Start at root
     let currentFlows = [flows];        // Flows for each level
     let levelIndex = 0;
+    let flowCreationCounter = 0; // Global counter to track flow creation order
+
 
     const participantsDiv = document.getElementById('participants');
     const addParticipantBtn = document.getElementById('addParticipantBtn');
@@ -630,7 +683,7 @@ addParticipantBtn.onclick = function() {
 };
 
 // --- ADD FLOW AT CURRENT LEVEL ---
-addFlowBtn.onclick = function() {
+addFlowBtn.onclick = function () {
   const data = dataInput.value.trim();
   const sender = parseInt(senderSelect.value);
   const receiver = parseInt(receiverSelect.value);
@@ -638,7 +691,12 @@ addFlowBtn.onclick = function() {
     alert('Please enter data and select sender and receiver.');
     return;
   }
-  currentFlows[0].push({ sender, receiver, data }); // <--- always use [0]
+  currentFlows[0].push({
+    sender,
+    receiver,
+    data,
+    creationOrder: flowCreationCounter++, // Assign a unique creation order
+  });
   dataInput.value = '';
   renderDiagramWithLastAnimated();
   renderFlowPanel();
@@ -654,30 +712,54 @@ playBtn.onclick = function() {
   playAnimation();
 };
 
-function playAnimation(onAllDone) {
-  diagramDiv.innerHTML = '';
-  const widthPerParticipant = 160;
-  const heightPerFlow = 60;
+function getAllFlowsInSequence(participants, flows, level = 0, path = []) {
+  let result = [];
 
-  const levelParticipants = currentLevel[0];
-  const levelFlows = currentFlows[0];
-
-  renderDiagramParticipantsLevel(levelParticipants, widthPerParticipant);
-
-  let i = 0;
-  function showNextFlow() {
-    if (i >= levelFlows.length) {
-      if (typeof onAllDone === 'function') onAllDone();
-      return;
-    }
-    renderSingleFlowLevel(levelFlows[i], i, widthPerParticipant, heightPerFlow, levelParticipants, () => {
-      i++;
-      showNextFlow();
+  // Add flows at the current level
+  flows.forEach((flow, idx) => {
+    result.push({
+      sender: participants[flow.sender]?.name || '?',
+      receiver: participants[flow.receiver]?.name || '?',
+      data: flow.data,
+      level,
+      path: [...path], // Track the path to this flow
+      flowIdx: idx, // Index of the flow at this level
     });
-  }
-  showNextFlow();
-  setDiagramSize(widthPerParticipant, heightPerFlow);
+  });
+
+  // Recursively add flows from children
+  participants.forEach((participant, idx) => {
+    if (participant.children && participant.children.length > 0) {
+      const childFlows = getAllFlowsInSequence(
+        participant.children,
+        participant.flows || [],
+        level + 1,
+        [...path, idx] // Add the current participant index to the path
+      );
+      result = result.concat(childFlows);
+    }
+  });
+
+  return result;
 }
+
+
+function getParticipantsAtPath(path) {
+  let participants = currentLevel[0];
+  path.forEach((idx) => {
+    participants = participants[idx]?.children || [];
+  });
+  return participants;
+}
+
+function getFlowsAtPath(path) {
+  let flows = currentFlows[0];
+  path.forEach((idx) => {
+    flows = currentLevel[0][idx]?.flows || [];
+  });
+  return flows;
+}
+
 function renderSingleFlow(flow, i, widthPerParticipant, heightPerFlow, onDone) {
   const { sender, receiver, data } = flow;
   const x1 = widthPerParticipant * sender + widthPerParticipant / 2;
@@ -830,7 +912,6 @@ function zoomToParticipant(participantIdx, afterZoomCallback) {
   const boxes = diagramDiv.querySelectorAll('.diagram-participant');
   const box = boxes[participantIdx];
   if (!box) {
-    // fallback to old zoom if not found
     fallbackZoom();
     return;
   }
@@ -844,16 +925,16 @@ function zoomToParticipant(participantIdx, afterZoomCallback) {
   const boxCenterY = boxRect.top + boxRect.height / 2 - diagramRect.top;
 
   // Calculate scale and translate to center the box
-  const scale = 2.2; // how much to zoom in
+  const scale = 2.5; // Increased zoom level for better focus
   const diagramCenterX = diagramRect.width / 2;
   const diagramCenterY = diagramRect.height / 2;
-  const translateX = diagramCenterX - boxCenterX;
-  const translateY = diagramCenterY - boxCenterY;
+  const translateX = (diagramCenterX - boxCenterX) / scale;
+  const translateY = (diagramCenterY - boxCenterY) / scale;
 
   // Apply transform to diagram
-  diagramDiv.style.transition = 'transform 0.7s cubic-bezier(.4,2,.6,1)';
+  diagramDiv.style.transition = 'transform 0.8s cubic-bezier(0.4, 0.0, 0.2, 1)';
   diagramDiv.style.transformOrigin = `${boxCenterX}px ${boxCenterY}px`;
-  diagramDiv.style.transform = `scale(${scale}) translate(${translateX/scale}px, ${translateY/scale}px)`;
+  diagramDiv.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
 
   // Highlight the box
   box.classList.add('diagram-zoom-target');
@@ -872,15 +953,15 @@ function zoomToParticipant(participantIdx, afterZoomCallback) {
     if (!parent.flows) parent.flows = [];
     currentFlows.unshift(parent.flows);
 
-    //renderParticipants();
     renderParticipantsTree();
     renderDiagramLevel();
     renderControls();
     renderBackButton();
+
     if (typeof afterZoomCallback === 'function') {
       afterZoomCallback();
     }
-  }, 700);
+  }, 800);
 
   function fallbackZoom() {
     diagramDiv.classList.add('diagram-zoom');
@@ -893,17 +974,18 @@ function zoomToParticipant(participantIdx, afterZoomCallback) {
       if (!parent.flows) parent.flows = [];
       currentFlows.unshift(parent.flows);
 
-      //renderParticipants();
       renderParticipantsTree();
       renderDiagramLevel();
       renderControls();
       renderBackButton();
+
       if (typeof afterZoomCallback === 'function') {
         afterZoomCallback();
       }
     }, 700);
   }
 }
+
 
 function renderDiagramParticipantsLevel(participants, widthPerParticipant) {
   participants.forEach((p, idx) => {
@@ -1026,51 +1108,151 @@ function zoomOutToParent(nextFlowIdx) {
 
 let editingFlowIdx = null; // Track which flow is being edited
 
+
 function renderFlowPanel() {
   const flowPanel = document.getElementById('flowPanel');
-  const levelParticipants = currentLevel[0];
-  const levelFlows = currentFlows[0];
-
   flowPanel.innerHTML = `<h3>Data Flows</h3>`;
-  if (!levelFlows.length) {
-    flowPanel.innerHTML += `<div style="color:#888;">No flows defined for this level.</div>`;
+
+  const allFlows = getAllFlowsInSequence(currentLevel[0], currentFlows[0]);
+
+  if (allFlows.length === 0) {
+    flowPanel.innerHTML += `<div style="color:#888;">No flows defined.</div>`;
     return;
   }
 
-  levelFlows.forEach((flow, idx) => {
-    if (editingFlowIdx === idx) {
-      // Inline edit mode
-      flowPanel.innerHTML += `
-        <div class="flow-step">
-          <select id="editSender${idx}">
-            ${levelParticipants.map((p, i) =>
-              `<option value="${i}" ${i === flow.sender ? 'selected' : ''}>${p.name}</option>`
-            ).join('')}
-          </select>
-          <span>→</span>
-          <select id="editReceiver${idx}">
-            ${levelParticipants.map((p, i) =>
-              `<option value="${i}" ${i === flow.receiver ? 'selected' : ''}>${p.name}</option>`
-            ).join('')}
-          </select>
-          <input id="editData${idx}" type="text" value="${flow.data.replace(/"/g, '&quot;')}" style="width:110px; margin:0 6px;" />
-          <button onclick="saveFlowEdit(${idx})">Save</button>
-          <button onclick="cancelFlowEdit()">Cancel</button>
-        </div>
-      `;
-    } else {
-      // Normal view
-      const sender = levelParticipants[flow.sender]?.name || '?';
-      const receiver = levelParticipants[flow.receiver]?.name || '?';
-      flowPanel.innerHTML += `
-        <div class="flow-step">
-          <span><b>${sender}</b> → <b>${receiver}</b>: ${flow.data}</span>
-          <button onclick="editFlow(${idx})">Edit</button>
-          <button onclick="deleteFlow(${idx})">Delete</button>
-        </div>
-      `;
+  // Render all flows in sequence
+  allFlows.forEach(({ sender, receiver, data, level }, idx) => {
+    const flowStep = document.createElement('div');
+    flowStep.className = 'flow-step';
+    flowStep.style.marginLeft = `${level * 20}px`;
+    flowStep.draggable = true; // Make the flow draggable
+    flowStep.setAttribute('data-index', idx); // Store the index of the flow
+
+    // Add drag event listeners
+    flowStep.addEventListener('dragstart', handleDragStart);
+    flowStep.addEventListener('dragover', handleDragOver);
+    flowStep.addEventListener('drop', handleDrop);
+
+    // Render flow normally
+    flowStep.innerHTML = `
+      <span><b>${sender}</b> → <b>${receiver}</b>: ${data}</span>
+      <button onclick="editFlow(${idx})">Edit</button>
+      <button onclick="deleteFlow(${idx})">Delete</button>
+    `;
+
+    flowPanel.appendChild(flowStep);
+  });
+}
+
+
+let draggedFlowIdx = null;
+
+function handleDragStart(event) {
+  draggedFlowIdx = parseInt(event.target.getAttribute('data-index'));
+  event.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragOver(event) {
+  event.preventDefault(); // Allow dropping
+  event.dataTransfer.dropEffect = 'move';
+}
+
+function handleDrop(event) {
+  event.preventDefault();
+  const targetIdx = parseInt(event.target.getAttribute('data-index'));
+
+  if (draggedFlowIdx !== null && targetIdx !== null && draggedFlowIdx !== targetIdx) {
+    // Reorder the flows array
+    const levelFlows = currentFlows[0];
+    const [draggedFlow] = levelFlows.splice(draggedFlowIdx, 1);
+    levelFlows.splice(targetIdx, 0, draggedFlow);
+
+    // Re-render the panel and diagram
+    renderDiagramLevel();
+    renderFlowPanel();
+  }
+
+  draggedFlowIdx = null;
+}
+
+function getAllFlowsInSequence(participants, flows, level = 0, path = []) {
+  let result = [];
+
+  // Add flows at the current level
+  flows.forEach((flow, idx) => {
+    result.push({
+      sender: participants[flow.sender]?.name || '?',
+      receiver: participants[flow.receiver]?.name || '?',
+      data: flow.data,
+      level,
+      path: [...path], // Track the path to this flow
+      flowIdx: idx, // Index of the flow at this level
+    });
+  });
+
+  // Recursively add flows from children
+  participants.forEach((participant, idx) => {
+    if (participant.children && participant.children.length > 0) {
+      const childFlows = getAllFlowsInSequence(
+        participant.children,
+        participant.flows || [],
+        level + 1,
+        [...path, idx] // Add the current participant index to the path
+      );
+      result = result.concat(childFlows);
     }
   });
+
+  return result;
+}
+// Helper function to render inner flows recursively
+function renderInnerFlows(participant) {
+  let html = '';
+  if (participant.flows && participant.flows.length > 0) {
+    participant.flows.forEach((flow, idx) => {
+      const sender = participant.children[flow.sender]?.name || '?';
+      const receiver = participant.children[flow.receiver]?.name || '?';
+      html += `
+        <div class="flow-step">
+          <span><b>${sender}</b> → <b>${receiver}</b>: ${flow.data}</span>
+          <button onclick="editInnerFlow('${participant.name}', ${idx})">Edit</button>
+          <button onclick="deleteInnerFlow('${participant.name}', ${idx})">Delete</button>
+        </div>
+      `;
+    });
+  }
+  if (participant.children && participant.children.length > 0) {
+    participant.children.forEach((child, idx) => {
+      const collapsibleId = `collapsible-${participant.name}-${idx}`;
+      html += `
+        <div class="flow-step">
+          <span style="cursor: pointer;" onclick="toggleCollapse('${collapsibleId}')">
+            ▶ <b>${child.name}</b>
+          </span>
+          <div id="${collapsibleId}" style="display: none; margin-left: 20px;">
+            ${renderInnerFlows(child)}
+          </div>
+        </div>
+      `;
+    });
+  }
+  return html;
+}
+// Helper function to check if any participant has inner flows
+function hasInnerFlows(participants) {
+  return participants.some(
+    (p) => (p.flows && p.flows.length > 0) || hasInnerFlows(p.children || [])
+  );
+}
+
+// Helper function to toggle collapsible sections
+function toggleCollapse(id) {
+  const element = document.getElementById(id);
+  if (element.style.display === 'none') {
+    element.style.display = 'block';
+  } else {
+    element.style.display = 'none';
+  }
 }
 
 window.editFlow = function(idx) {
@@ -1564,6 +1746,126 @@ function playAllFlowsFlat() {
     }
   }
   animateNext();
+}
+function editInnerFlow(participantName, flowIdx) {
+  const participant = findParticipantByName(participants, participantName);
+  if (!participant) return;
+
+  const flow = participant.flows[flowIdx];
+  if (!flow) return;
+
+  const newSender = prompt('Edit Sender:', participant.children[flow.sender]?.name || '');
+  const newReceiver = prompt('Edit Receiver:', participant.children[flow.receiver]?.name || '');
+  const newData = prompt('Edit Data:', flow.data);
+
+  if (newSender && newReceiver && newData) {
+    const senderIdx = participant.children.findIndex((p) => p.name === newSender);
+    const receiverIdx = participant.children.findIndex((p) => p.name === newReceiver);
+
+    if (senderIdx !== -1 && receiverIdx !== -1) {
+      flow.sender = senderIdx;
+      flow.receiver = receiverIdx;
+      flow.data = newData;
+      renderFlowPanel();
+    } else {
+      alert('Invalid sender or receiver.');
+    }
+  }
+}
+
+function deleteInnerFlow(participantName, flowIdx) {
+  const participant = findParticipantByName(participants, participantName);
+  if (!participant) return;
+
+  if (confirm('Delete this inner flow?')) {
+    participant.flows.splice(flowIdx, 1);
+    renderFlowPanel();
+  }
+}
+
+function findParticipantByName(participants, name) {
+  for (const participant of participants) {
+    if (participant.name === name) return participant;
+    if (participant.children && participant.children.length > 0) {
+      const found = findParticipantByName(participant.children, name);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+const diagramContainer = document.getElementById('diagram');
+
+fullscreenBtn.onclick = function () {
+  if (!document.fullscreenElement) {
+    diagramContainer.requestFullscreen().catch((err) => {
+      alert(`Error attempting to enable full-screen mode: ${err.message}`);
+    });
+  } else {
+    document.exitFullscreen();
+  }
+};
+
+const fullscreenPlayBtn = document.getElementById('fullscreenPlayBtn');
+
+fullscreenPlayBtn.onclick = function () {
+  playAnimation();
+};
+
+function playAnimation(onAllDone) {
+  diagramDiv.innerHTML = '';
+  const widthPerParticipant = 160;
+  const heightPerFlow = 60;
+
+  const allFlows = getAllFlowsInSequence(currentLevel[0], currentFlows[0]);
+
+  renderDiagramParticipantsLevel(currentLevel[0], widthPerParticipant);
+
+  let i = 0;
+
+  function showNextFlow() {
+    if (i >= allFlows.length) {
+      if (typeof onAllDone === 'function') onAllDone();
+      return;
+    }
+
+    const { sender, receiver, data, level, path } = allFlows[i];
+    const levelParticipants = getParticipantsAtPath(path);
+    const levelFlows = getFlowsAtPath(path);
+
+    const senderIdx = levelParticipants.findIndex((p) => p.name === sender);
+    const receiverIdx = levelParticipants.findIndex((p) => p.name === receiver);
+
+    const x1 = widthPerParticipant * senderIdx + widthPerParticipant / 2;
+    const x2 = widthPerParticipant * receiverIdx + widthPerParticipant / 2;
+    const y = 70 + i * heightPerFlow;
+
+    if (senderIdx === receiverIdx) {
+      renderAnimatedSelfArrow(x1, y, data, () => {
+        i++;
+        showNextFlow();
+      });
+    } else {
+      renderAnimatedFlowArrow(x1, x2, y, data, () => {
+        const receiverObj = levelParticipants[receiverIdx];
+        if (receiverObj && receiverObj.children && receiverObj.children.length > 0) {
+          // Zoom into the receiver and play its flows
+          zoomToParticipant(receiverIdx, () => {
+            playAnimation(() => {
+              // After child animation, zoom out and continue parent animation
+              zoomOutToParent(i + 1);
+            });
+          });
+        } else {
+          i++;
+          showNextFlow();
+        }
+      });
+    }
+  }
+
+  showNextFlow();
+  setDiagramSize(widthPerParticipant, heightPerFlow);
 }
 </script>
 </body>

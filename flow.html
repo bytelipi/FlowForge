@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sequence Data Flow Diagram Generator</title>
+  <style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; margin: 30px; background: #f4f8fb; }
+  .participants { display: flex; gap: 10px; margin-bottom: 20px; }
+  .participant {
+    padding: 8px 16px;
+    background: linear-gradient(90deg, #e3f0ff 0%, #c9eaff 100%);
+    border-radius: 6px;
+    box-shadow: 0 2px 8px #b6d0e2a0;
+    font-weight: 500;
+    color: #1976d2;
+    border: 1.5px solid #90caf9;
+    position: relative;
+    transition: box-shadow 0.2s;
+  }
+  .participant:hover {
+    box-shadow: 0 4px 16px #90caf9a0;
+  }
+  .add-btn {
+    background: linear-gradient(135deg, #4caf50 60%, #81c784 100%);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    font-size: 22px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px #b6d0e2a0;
+    transition: background 0.2s;
+  }
+  .add-btn:hover {
+    background: linear-gradient(135deg, #388e3c 60%, #66bb6a 100%);
+  }
+  .controls { margin-bottom: 20px; }
+  .controls input, .controls select, .controls button {
+    margin-right: 10px;
+    padding: 7px;
+    font-size: 16px;
+    border-radius: 4px;
+    border: 1px solid #b0bec5;
+    outline: none;
+    transition: border 0.2s;
+  }
+  .controls input:focus, .controls select:focus {
+    border: 1.5px solid #1976d2;
+  }
+  .controls button {
+    background: linear-gradient(90deg, #1976d2 60%, #64b5f6 100%);
+    color: white;
+    border: none;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .controls button:hover {
+    background: linear-gradient(90deg, #1565c0 60%, #42a5f5 100%);
+  }
+  .diagram {
+    position: relative;
+    border: 1.5px solid #90caf9;
+    min-height: 220px;
+    padding: 40px 0 60px 0;
+    background: #fff;
+    overflow-x: auto;
+    border-radius: 10px;
+    box-shadow: 0 2px 16px #b6d0e2a0;
+  }
+  .diagram-participant {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 120px;
+    height: 40px;
+    background: linear-gradient(90deg, #e3f0ff 0%, #c9eaff 100%);
+    border-radius: 8px 8px 0 0;
+    box-shadow: 0 2px 8px #b6d0e2a0;
+    border: 1.5px solid #90caf9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: #1976d2;
+    z-index: 2;
+  }
+  .lifeline {
+    position: absolute;
+    top: 40px;
+    width: 2.5px;
+    height: calc(100% - 40px);
+    background: repeating-linear-gradient(
+      to bottom,
+      #90caf9,
+      #90caf9 8px,
+      transparent 8px,
+      transparent 16px
+    );
+    left: 0;
+    z-index: 1;
+  }
+  .arrow {
+    position: absolute;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    font-size: 15px;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .arrow-line {
+    height: 4px;
+    background: linear-gradient(90deg, #1976d2 60%, #64b5f6 100%);
+    flex: 1;
+    margin: 0 4px;
+    border-radius: 2px;
+    position: relative;
+    box-shadow: 0 1px 4px #90caf9a0;
+  }
+  .arrow-head {
+    width: 0; height: 0;
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
+    border-left: 16px solid #1976d2;
+    margin-left: 2px;
+  }
+  .arrow-label {
+    background: #fff;
+    padding: 3px 10px;
+    border-radius: 5px;
+    border: 1.5px solid #1976d2;
+    margin-right: 8px;
+    font-weight: 500;
+    color: #1976d2;
+    box-shadow: 0 1px 4px #90caf9a0;
+  }
+  /* Add to your <style> section */
+@keyframes moveLabelRight {
+  from { left: 0; }
+  to { left: calc(100% - 80px); }
+}
+@keyframes moveLabelLeft {
+  from { left: calc(100% - 80px); }
+  to { left: 0; }
+}
+.light-ball {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 40%, #90caf9 80%, #1976d2 100%);
+  box-shadow: 0 0 16px 6px #90caf9, 0 0 2px 1px #1976d2;
+  z-index: 10;
+  pointer-events: none;
+}
+@keyframes moveBallRight {
+  from { left: 0; }
+  to { left: calc(100% - 18px); }
+}
+@keyframes moveBallLeft {
+  from { left: calc(100% - 18px); }
+  to { left: 0; }
+}
+.diagram-zoom {
+  animation: zoomIn 0.7s forwards;
+  transform-origin: center center;
+}
+@keyframes zoomIn {
+  from { transform: scale(1); }
+  to   { transform: scale(1.2); }
+}
+</style>
+</head>
+<body>
+  <h2>Sequence Data Flow Diagram Generator</h2>
+  <div class="participants" id="participants">
+    <!-- Participants will be rendered here -->
+    <button class="add-btn" id="addParticipantBtn" title="Add Participant">+</button>
+  </div>
+  <div class="controls">
+    <input type="text" id="dataInput" placeholder="Enter data/message" />
+    <select id="senderSelect"></select>
+    <span>→</span>
+    <select id="receiverSelect"></select>
+    <button id="addFlowBtn">Add Data Flow</button>
+    <!-- Add inside your .controls div -->
+    <button id="playBtn" type="button">▶ Play</button>
+  </div>
+  <div class="diagram" id="diagram" style="position:relative; min-width:600px;">
+    <!-- Diagram will be rendered here -->
+  </div>
+  <script>
+    let participants = [];
+    let flows = [];
+
+    const participantsDiv = document.getElementById('participants');
+    const addParticipantBtn = document.getElementById('addParticipantBtn');
+    const senderSelect = document.getElementById('senderSelect');
+    const receiverSelect = document.getElementById('receiverSelect');
+    const addFlowBtn = document.getElementById('addFlowBtn');
+    const dataInput = document.getElementById('dataInput');
+    const diagramDiv = document.getElementById('diagram');
+
+    function renderParticipants() {
+      // Remove all except the add button
+      participantsDiv.innerHTML = '';
+      participants.forEach((p, idx) => {
+        const div = document.createElement('div');
+        div.className = 'participant';
+        div.textContent = p;
+        participantsDiv.appendChild(div);
+      });
+      participantsDiv.appendChild(addParticipantBtn);
+      // Update selects
+      senderSelect.innerHTML = '';
+      receiverSelect.innerHTML = '';
+      participants.forEach((p, idx) => {
+        let opt1 = document.createElement('option');
+        opt1.value = idx;
+        opt1.textContent = p;
+        senderSelect.appendChild(opt1);
+        let opt2 = document.createElement('option');
+        opt2.value = idx;
+        opt2.textContent = p;
+        receiverSelect.appendChild(opt2);
+      });
+    }
+
+
+function renderDiagram() {
+  diagramDiv.innerHTML = '';
+  const widthPerParticipant = 160;
+  const heightPerFlow = 60;
+
+  renderDiagramParticipants(widthPerParticipant);
+  renderDiagramFlows(widthPerParticipant, heightPerFlow);
+  setDiagramSize(widthPerParticipant, heightPerFlow);
+}
+
+function renderDiagramParticipants(widthPerParticipant) {
+  participants.forEach((p, idx) => {
+    // Participant box
+    const box = document.createElement('div');
+    box.className = 'diagram-participant';
+    box.style.left = (widthPerParticipant * idx + widthPerParticipant/2 - 60) + 'px';
+    box.textContent = p;
+    diagramDiv.appendChild(box);
+    // Lifeline
+    const line = document.createElement('div');
+    line.className = 'lifeline';
+    line.style.left = (widthPerParticipant * idx + widthPerParticipant/2) + 'px';
+    diagramDiv.appendChild(line);
+  });
+}
+
+function renderDiagramFlows(widthPerParticipant, heightPerFlow) {
+  flows.forEach((flow, i) => {
+    const { sender, receiver, data } = flow;
+    const x1 = widthPerParticipant * sender + widthPerParticipant/2;
+    const x2 = widthPerParticipant * receiver + widthPerParticipant/2;
+    const y = 70 + i * heightPerFlow;
+
+    if (sender === receiver) {
+      renderSelfArrow(x1, y, data);
+    } else {
+      renderAnimatedArrow(x1, x2, y, data);
+    }
+  });
+}
+
+function renderSelfArrow(x, y, data) {
+  const loop = document.createElement('div');
+  loop.style.position = 'absolute';
+  loop.style.left = (x - 30) + 'px';
+  loop.style.top = (y - 10) + 'px';
+  loop.style.width = '60px';
+  loop.style.height = '36px';
+  loop.style.border = '3px solid #1976d2';
+  loop.style.borderRadius = '50%';
+  loop.style.borderLeft = 'none';
+  loop.style.borderBottom = 'none';
+  loop.style.transform = 'rotate(30deg)';
+  loop.style.zIndex = 4;
+
+  // Arrow head for loop
+  const head = document.createElement('div');
+  head.className = 'arrow-head';
+  head.style.position = 'absolute';
+  head.style.right = '0px';
+  head.style.top = '10px';
+  head.style.transform = 'rotate(45deg)';
+  loop.appendChild(head);
+
+  // Label
+  const label = document.createElement('span');
+  label.className = 'arrow-label';
+  label.textContent = data;
+  label.style.position = 'absolute';
+  label.style.left = '50%';
+  label.style.top = '-22px';
+  label.style.transform = 'translateX(-50%)';
+  loop.appendChild(label);
+
+  diagramDiv.appendChild(loop);
+}
+
+
+function renderAnimatedArrow(x1, x2, y, data, animate = true) {
+  const arrow = createArrowContainer(x1, x2, y);
+  const label = createArrowLabel(x1, x2, data, animate);
+  const line = createArrowLine();
+  const head = createArrowHead(x1, x2);
+
+  if (animate) {
+    const ball = createLightBall(x1, x2);
+    // Remove the ball after animation ends
+    ball.addEventListener('animationend', () => {
+      ball.remove();
+    });
+    arrow.appendChild(ball);
+  }
+
+  arrow.style.flexDirection = x1 < x2 ? 'row' : 'row-reverse';
+  arrow.appendChild(label);
+  arrow.appendChild(line);
+  arrow.appendChild(head);
+
+  diagramDiv.appendChild(arrow);
+}
+
+function createArrowLabel(x1, x2, data, animate) {
+  const label = document.createElement('span');
+  label.className = 'arrow-label';
+  label.textContent = data;
+  label.style.position = 'absolute';
+  label.style.top = '-30px';
+  label.style.width = '80px';
+  label.style.pointerEvents = 'none';
+
+  if (animate) {
+    const duration = Math.abs(x2 - x1) / 120 + 0.6;
+    if (x1 < x2) {
+      label.style.left = '0';
+      label.style.animation = `moveLabelRight ${duration}s linear`;
+    } else {
+      label.style.left = 'calc(100% - 80px)';
+      label.style.animation = `moveLabelLeft ${duration}s linear`;
+    }
+    label.style.animationFillMode = 'forwards';
+  } else {
+    label.style.left = x1 < x2 ? 'calc(100% - 80px)' : '0';
+  }
+
+  return label;
+}
+
+function createLightBall(x1, x2) {
+  const ball = document.createElement('div');
+  ball.className = 'light-ball';
+  const duration = Math.abs(x2 - x1) / 120 + 0.6;
+  if (x1 < x2) {
+    ball.style.left = '0';
+    ball.style.animation = `moveBallRight ${duration}s linear`;
+  } else {
+    ball.style.left = 'calc(100% - 18px)';
+    ball.style.animation = `moveBallLeft ${duration}s linear`;
+  }
+  ball.style.animationFillMode = 'forwards';
+  return ball;
+}
+
+function setDiagramSize(widthPerParticipant, heightPerFlow) {
+  diagramDiv.style.minWidth = (participants.length * widthPerParticipant + 40) + 'px';
+  diagramDiv.style.height = (flows.length * heightPerFlow + 140) + 'px';
+}
+
+addParticipantBtn.onclick = function() {
+  const name = prompt('Enter participant name:');
+  if (name && name.trim()) {
+    participants.push(name.trim());
+    renderParticipants();
+    renderDiagram();
+  }
+};
+
+addFlowBtn.onclick = function() {
+  const data = dataInput.value.trim();
+  const sender = parseInt(senderSelect.value);
+  const receiver = parseInt(receiverSelect.value);
+  if (!data || isNaN(sender) || isNaN(receiver)) {
+    alert('Please enter data and select sender and receiver.');
+    return;
+  }
+  flows.push({ sender, receiver, data });
+  dataInput.value = '';
+  renderDiagramWithLastAnimated();
+};
+
+// Initial state
+participants = ['Alice', 'Bob'];
+renderParticipants();
+renderDiagram();
+
+    const playBtn = document.getElementById('playBtn');
+
+playBtn.onclick = function() {
+  playAnimation();
+};
+
+function playAnimation() {
+  diagramDiv.innerHTML = '';
+  const widthPerParticipant = 160;
+  const heightPerFlow = 60;
+
+  renderDiagramParticipants(widthPerParticipant);
+
+  let i = 0;
+  function showNextFlow() {
+    if (i >= flows.length) return;
+    renderSingleFlow(flows[i], i, widthPerParticipant, heightPerFlow, () => {
+      i++; // increment after each animation step
+      showNextFlow();
+    });
+  }
+  showNextFlow();
+  setDiagramSize(widthPerParticipant, heightPerFlow);
+}
+
+function renderSingleFlow(flow, i, widthPerParticipant, heightPerFlow, onDone) {
+  const { sender, receiver, data } = flow;
+  const x1 = widthPerParticipant * sender + widthPerParticipant / 2;
+  const x2 = widthPerParticipant * receiver + widthPerParticipant / 2;
+  const y = 70 + i * heightPerFlow;
+
+  if (sender === receiver) {
+    renderAnimatedSelfArrow(x1, y, data, onDone);
+  } else {
+    renderAnimatedFlowArrow(x1, x2, y, data, onDone);
+  }
+}
+
+function renderAnimatedSelfArrow(x, y, data, onDone) {
+  renderSelfArrow(x, y, data);
+  setTimeout(onDone, 700);
+}
+
+function renderAnimatedFlowArrow(x1, x2, y, data, onDone) {
+  const arrow = createArrowContainer(x1, x2, y);
+  const label = createAnimatedLabel(x1, x2, data, onDone);
+  const line = createArrowLine();
+  const head = createArrowHead(x1, x2);
+
+  // Add the light ball for animation
+  const ball = createLightBall(x1, x2);
+  // Remove the ball after animation ends
+  ball.addEventListener('animationend', () => {
+    ball.remove();
+  });
+  arrow.appendChild(ball);
+
+  arrow.style.flexDirection = x1 < x2 ? 'row' : 'row-reverse';
+  arrow.appendChild(label);
+  arrow.appendChild(line);
+  arrow.appendChild(head);
+
+  diagramDiv.appendChild(arrow);
+}
+
+
+function createArrowContainer(x1, x2, y) {
+  const arrow = document.createElement('div');
+  arrow.className = 'arrow';
+  arrow.style.top = y + 'px';
+  arrow.style.left = Math.min(x1, x2) + 'px';
+  arrow.style.width = Math.abs(x2 - x1) + 'px';
+  arrow.style.position = 'absolute';
+  arrow.style.display = 'flex';
+  arrow.style.alignItems = 'center';
+  return arrow;
+}
+
+function createAnimatedLabel(x1, x2, data, onDone) {
+  const label = document.createElement('span');
+  label.className = 'arrow-label';
+  label.textContent = data;
+  label.style.position = 'absolute';
+  label.style.top = '-30px';
+  label.style.width = '80px';
+  label.style.pointerEvents = 'none';
+
+  const duration = Math.abs(x2 - x1) / 120 + 0.6;
+  if (x1 < x2) {
+    label.style.left = '0';
+    label.style.animation = `moveLabelRight ${duration}s linear`;
+  } else {
+    label.style.left = 'calc(100% - 80px)';
+    label.style.animation = `moveLabelLeft ${duration}s linear`;
+  }
+  label.style.animationFillMode = 'forwards';
+
+  label.addEventListener('animationend', onDone);
+  return label;
+}
+
+function createArrowLine() {
+  const line = document.createElement('div');
+  line.className = 'arrow-line';
+  line.style.flex = '1';
+  return line;
+}
+
+function createArrowHead(x1, x2) {
+  const head = document.createElement('div');
+  head.className = 'arrow-head';
+  if (x1 > x2) {
+    head.style.transform = 'rotate(180deg)';
+    head.style.marginLeft = '0';
+    head.style.marginRight = '2px';
+  }
+  return head;
+}
+
+function renderDiagramWithLastAnimated() {
+  diagramDiv.innerHTML = '';
+  const widthPerParticipant = 160;
+  const heightPerFlow = 60;
+
+  renderDiagramParticipants(widthPerParticipant);
+
+  // Render all but last flow statically
+  for (let i = 0; i < flows.length - 1; i++) {
+    const { sender, receiver, data } = flows[i];
+    const x1 = widthPerParticipant * sender + widthPerParticipant / 2;
+    const x2 = widthPerParticipant * receiver + widthPerParticipant / 2;
+    const y = 70 + i * heightPerFlow;
+    if (sender === receiver) {
+      renderSelfArrow(x1, y, data);
+    } else {
+      renderAnimatedArrow(x1, x2, y, data, false); // static
+    }
+  }
+  // Animate only the last flow
+  if (flows.length > 0) {
+    const i = flows.length - 1;
+    const { sender, receiver, data } = flows[i];
+    const x1 = widthPerParticipant * sender + widthPerParticipant / 2;
+    const x2 = widthPerParticipant * receiver + widthPerParticipant / 2;
+    const y = 70 + i * heightPerFlow;
+    if (sender === receiver) {
+      renderSelfArrow(x1, y, data);
+    } else {
+      renderAnimatedArrow(x1, x2, y, data, true); // animate
+    }
+  }
+  setDiagramSize(widthPerParticipant, heightPerFlow);
+}
+
+function zoomToParticipant(participantIdx) {
+  // Animate zoom
+  diagramDiv.classList.add('diagram-zoom');
+  setTimeout(() => {
+    diagramDiv.classList.remove('diagram-zoom');
+    // Move to next level
+    levelIndex++;
+    currentLevel = [currentLevel[0][participantIdx].children];
+    // You need to manage flows for each level, e.g. currentFlows[levelIndex]
+    renderDiagramLevel();
+  }, 700);
+}
+  </script>
+</body>
+</html>

@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sequence Data Flow Diagram Generator</title>
+  <style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; margin: 30px; background: #f4f8fb; }
+  .participants { display: flex; gap: 10px; margin-bottom: 20px; }
+  .participant {
+    padding: 8px 16px;
+    background: linear-gradient(90deg, #e3f0ff 0%, #c9eaff 100%);
+    border-radius: 6px;
+    box-shadow: 0 2px 8px #b6d0e2a0;
+    font-weight: 500;
+    color: #1976d2;
+    border: 1.5px solid #90caf9;
+    position: relative;
+    transition: box-shadow 0.2s;
+  }
+  .participant:hover {
+    box-shadow: 0 4px 16px #90caf9a0;
+  }
+  .add-btn {
+    background: linear-gradient(135deg, #4caf50 60%, #81c784 100%);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    font-size: 22px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px #b6d0e2a0;
+    transition: background 0.2s;
+  }
+  .add-btn:hover {
+    background: linear-gradient(135deg, #388e3c 60%, #66bb6a 100%);
+  }
+  .controls { margin-bottom: 20px; }
+  .controls input, .controls select, .controls button {
+    margin-right: 10px;
+    padding: 7px;
+    font-size: 16px;
+    border-radius: 4px;
+    border: 1px solid #b0bec5;
+    outline: none;
+    transition: border 0.2s;
+  }
+  .controls input:focus, .controls select:focus {
+    border: 1.5px solid #1976d2;
+  }
+  .controls button {
+    background: linear-gradient(90deg, #1976d2 60%, #64b5f6 100%);
+    color: white;
+    border: none;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .controls button:hover {
+    background: linear-gradient(90deg, #1565c0 60%, #42a5f5 100%);
+  }
+  .diagram {
+    position: relative;
+    border: 1.5px solid #90caf9;
+    min-height: 220px;
+    padding: 40px 0 60px 0;
+    background: #fff;
+    overflow-x: auto;
+    border-radius: 10px;
+    box-shadow: 0 2px 16px #b6d0e2a0;
+  }
+  .diagram-participant {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 120px;
+    height: 40px;
+    background: linear-gradient(90deg, #e3f0ff 0%, #c9eaff 100%);
+    border-radius: 8px 8px 0 0;
+    box-shadow: 0 2px 8px #b6d0e2a0;
+    border: 1.5px solid #90caf9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: #1976d2;
+    z-index: 2;
+  }
+  .lifeline {
+    position: absolute;
+    top: 40px;
+    width: 2.5px;
+    height: calc(100% - 40px);
+    background: repeating-linear-gradient(
+      to bottom,
+      #90caf9,
+      #90caf9 8px,
+      transparent 8px,
+      transparent 16px
+    );
+    left: 0;
+    z-index: 1;
+  }
+  .arrow {
+    position: absolute;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    font-size: 15px;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .arrow-line {
+    height: 4px;
+    background: linear-gradient(90deg, #1976d2 60%, #64b5f6 100%);
+    flex: 1;
+    margin: 0 4px;
+    border-radius: 2px;
+    position: relative;
+    box-shadow: 0 1px 4px #90caf9a0;
+  }
+  .arrow-head {
+    width: 0; height: 0;
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
+    border-left: 16px solid #1976d2;
+    margin-left: 2px;
+  }
+  .arrow-label {
+    background: #fff;
+    padding: 3px 10px;
+    border-radius: 5px;
+    border: 1.5px solid #1976d2;
+    margin-right: 8px;
+    font-weight: 500;
+    color: #1976d2;
+    box-shadow: 0 1px 4px #90caf9a0;
+  }
+  /* Add to your <style> section */
+@keyframes moveLabelRight {
+  from { left: 0; }
+  to { left: calc(100% - 80px); }
+}
+@keyframes moveLabelLeft {
+  from { left: calc(100% - 80px); }
+  to { left: 0; }
+}
+.light-ball {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 40%, #90caf9 80%, #1976d2 100%);
+  box-shadow: 0 0 16px 6px #90caf9, 0 0 2px 1px #1976d2;
+  z-index: 10;
+  pointer-events: none;
+}
+@keyframes moveBallRight {
+  from { left: 0; }
+  to { left: calc(100% - 18px); }
+}
+@keyframes moveBallLeft {
+  from { left: calc(100% - 18px); }
+  to { left: 0; }
+}
+.diagram-zoom {
+  animation: zoomIn 0.7s forwards;
+  transform-origin: center center;
+}
+@keyframes zoomIn {
+  from { transform: scale(1); }
+  to   { transform: scale(1.2); }
+}
+
+.diagram-zoom-target {
+  transition: transform 0.7s cubic-bezier(.4,2,.6,1), box-shadow 0.7s;
+  z-index: 100;
+  box-shadow: 0 0 0 8px #90caf9a0;
+}
+.flow-panel {
+  position: absolute;
+  top: 80px;
+  right: 30px;
+  width: 320px;
+  min-height: 200px;
+  background: #f7fbff;
+  border: 1.5px solid #90caf9;
+  border-radius: 10px;
+  box-shadow: 0 2px 16px #b6d0e2a0;
+  padding: 18px 16px 16px 16px;
+  z-index: 20;
+  font-size: 16px;
+  overflow-x: auto;
+}
+.flow-panel h3 {
+  margin-top: 0;
+  color: #1976d2;
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+.flow-step {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  background: #e3f0ff;
+  border-radius: 6px;
+  padding: 6px 10px;
+  flex-wrap: wrap; /* Allow wrapping */
+  gap: 6px;        /* Add a little gap between items */
+}
+.flow-step select,
+.flow-step input[type="text"] {
+  min-width: 60px;
+  max-width: 90px;
+  font-size: 15px;
+  padding: 2px 4px;
+  box-sizing: border-box;
+}
+.flow-step span {
+  flex: 1;
+}
+.flow-panel button {
+  margin-left: 6px;
+  background: #fff;
+  color: #1976d2;
+  border: 1px solid #90caf9;
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+.flow-panel button:hover {
+  background: #e3f0ff;
+}
+
+.participants-tree {
+  display: flex;
+  gap: 40px;
+  margin-bottom: 20px;
+  align-items: flex-start;
+}
+.participant-tree-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 120px;
+  position: relative;
+}
+.participant-root {
+  padding: 8px 16px;
+  background: linear-gradient(90deg, #e3f0ff 0%, #c9eaff 100%);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px #b6d0e2a0;
+  font-weight: 500;
+  color: #1976d2;
+  border: 1.5px solid #90caf9;
+  margin-bottom: 8px;
+  position: relative;
+  cursor: pointer;
+  z-index: 2;
+}
+.participant-root:hover {
+  box-shadow: 0 4px 16px #90caf9a0;
+}
+.participant-children {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  position: relative;
+}
+.participant-child {
+  padding: 5px 12px;
+  background: #f7fbff;
+  border-radius: 5px;
+  border: 1px solid #90caf9;
+  color: #1976d2;
+  font-size: 15px;
+  margin-bottom: 2px;
+  position: relative;
+  z-index: 1;
+}
+.tree-connector {
+  width: 2px;
+  background: #90caf9;
+  position: absolute;
+  left: 50%;
+  top: 40px;
+  z-index: 0;
+}
+.participant-root span[title="Delete participant"]:hover {
+  background: #ffd6d6;
+  border-radius: 50%;
+}
+
+.diagram-hierarchy-root {
+  border: 2px solid #1976d2;
+  border-radius: 12px;
+  padding: 16px 24px;
+  margin: 20px;
+  background: #e3f0ff;
+  display: inline-block;
+  position: relative;
+  min-width: 200px;
+}
+.diagram-hierarchy-inner {
+  margin-top: 16px;
+  margin-left: 24px;
+  border-left: 2px dashed #90caf9;
+  padding-left: 16px;
+}
+.diagram-hierarchy-participant {
+  font-weight: bold;
+  color: #1976d2;
+  margin-bottom: 8px;
+  font-size: 18px;
+}
+.diagram-hierarchy-child {
+  margin-bottom: 8px;
+  font-size: 16px;
+  color: #1976d2;
+}
+</style>
+</head>
+<body>
+  <h2>Sequence Data Flow Diagram Generator</h2>
+   <button class="add-btn" id="addParticipantBtn" title="Add Participant">+</button>
+
+  <div class="participants-tree" id="participantsTree">
+    <!-- Participants will be rendered here -->
+  </div>
+    <!--div class="participants-tree" id="participantsTree"></div-->
+  <div class="controls">
+    <input type="text" id="dataInput" placeholder="Enter data/message" />
+    <select id="senderSelect"></select>
+    <span>→</span>
+    <select id="receiverSelect"></select>
+    <button id="addFlowBtn">Add Data Flow</button>
+    <!-- Add inside your .controls div -->
+    <button id="playBtn" type="button">▶ Play</button>
+    <button id="showAllBtn" type="button">Show All</button>  
+<button id="backToNormalBtn" type="button">Back to Normal</button>
+</div>
+  <div class="diagram" id="diagram" style="position:relative; min-width:600px;">
+    <!-- Diagram will be rendered here -->
+  </div>
+  <!-- Add after your .diagram div -->
+<div class="flow-panel" id="flowPanel"></div>
+  <script>
+    let participants = [
+  { name: 'Alice', children: [] },
+  { name: 'Bob', children: [] }
+];
+
+    let flows = [];
+    let currentLevel = [participants]; // Start at root
+    let currentFlows = [flows];        // Flows for each level
+    let levelIndex = 0;
+
+    const participantsDiv = document.getElementById('participants');
+    const addParticipantBtn = document.getElementById('addParticipantBtn');
+    const senderSelect = document.getElementById('senderSelect');
+    const receiverSelect = document.getElementById('receiverSelect');
+    const addFlowBtn = document.getElementById('addFlowBtn');
+    const dataInput = document.getElementById('dataInput');
+    const diagramDiv = document.getElementById('diagram');
+
+// --- PARTICIPANT RENDERING (with add/zoom) ---
+function renderParticipants() {
+  participantsDiv.innerHTML = '';
+  currentLevel[0].forEach((p, idx) => {
+    const div = document.createElement('div');
+    div.className = 'participant';
+    div.textContent = p.name;
+
+    // Add inner participant "+" button
+    const addChildBtn = document.createElement('button');
+    addChildBtn.textContent = '+';
+    addChildBtn.title = 'Add inner participant';
+    addChildBtn.style.marginLeft = '8px';
+    addChildBtn.style.background = '#fff';
+    addChildBtn.style.color = '#1976d2';
+    addChildBtn.style.border = '1px solid #90caf9';
+    addChildBtn.style.borderRadius = '50%';
+    addChildBtn.style.width = '22px';
+    addChildBtn.style.height = '22px';
+    addChildBtn.style.cursor = 'pointer';
+  addChildBtn.onclick = function(e) {
+  e.stopPropagation();
+  const name = prompt('Enter inner participant name:');
+  if (name && name.trim()) {
+    if (!p.children) p.children = [];
+    if (!p.flows) p.flows = [];
+    p.children.push({ name: name.trim(), children: [] });
+    alert(`Inner participant "${name.trim()}" added under "${p.name}".`);
+    //renderParticipants();
+    renderParticipantsTree();
+    renderDiagramLevel();
+    renderControls();
+  }
+};
+    div.appendChild(addChildBtn);
+
+    // Add zoom-in button if has children
+    if (p.children && p.children.length > 0) {
+      const zoomBtn = document.createElement('button');
+      zoomBtn.textContent = '🔍';
+      zoomBtn.title = 'Zoom into inner participants';
+      zoomBtn.style.marginLeft = '4px';
+      zoomBtn.style.cursor = 'pointer';
+      zoomBtn.onclick = function(e) {
+        e.stopPropagation();
+        zoomToParticipant(idx);
+      };
+      div.appendChild(zoomBtn);
+    }
+
+    participantsDiv.appendChild(div);
+  });
+  participantsDiv.appendChild(addParticipantBtn);
+
+
+   renderControls();
+  renderBackButton();
+  renderFlowPanel();
+}
+
+// --- ZOOM OUT ("Back" Button) ---
+function renderBackButton() {
+  let backBtn = document.getElementById('backBtn');
+  if (!backBtn) {
+    backBtn = document.createElement('button');
+    backBtn.id = 'backBtn';
+    backBtn.textContent = '⬅ Back';
+    backBtn.style.marginRight = '10px';
+    backBtn.onclick = function() {
+      if (currentLevel.length > 1) {
+        currentLevel.shift();
+        currentFlows.shift();
+       // renderParticipants();
+        renderParticipantsTree();
+        renderDiagramLevel();
+        renderControls();
+        renderBackButton();
+      }
+    };
+    document.querySelector('.controls').prepend(backBtn);
+  }
+  backBtn.style.display = currentLevel.length > 1 ? 'inline-block' : 'none';
+}
+// --- CONTROLS (dropdowns) ---
+function renderControls() {
+  senderSelect.innerHTML = '';
+  receiverSelect.innerHTML = '';
+  currentLevel[0].forEach((p, idx) => {
+    let opt1 = document.createElement('option');
+    opt1.value = idx;
+    opt1.textContent = p.name;
+    senderSelect.appendChild(opt1);
+    let opt2 = document.createElement('option');
+    opt2.value = idx;
+    opt2.textContent = p.name;
+    receiverSelect.appendChild(opt2);
+  });
+}
+
+
+function renderDiagram() {
+  diagramDiv.innerHTML = '';
+  const widthPerParticipant = 160;
+  const heightPerFlow = 60;
+
+  renderDiagramParticipants(widthPerParticipant);
+  renderDiagramFlows(widthPerParticipant, heightPerFlow);
+  setDiagramSize(widthPerParticipant, heightPerFlow);
+}
+
+function renderDiagramParticipants(widthPerParticipant) {
+  participants.forEach((p, idx) => {
+    // Participant box
+    const box = document.createElement('div');
+    box.className = 'diagram-participant';
+    box.style.left = (widthPerParticipant * idx + widthPerParticipant/2 - 60) + 'px';
+    box.textContent = p;
+    diagramDiv.appendChild(box);
+    // Lifeline
+    const line = document.createElement('div');
+    line.className = 'lifeline';
+    line.style.left = (widthPerParticipant * idx + widthPerParticipant/2) + 'px';
+    diagramDiv.appendChild(line);
+  });
+}
+
+function renderDiagramFlows(widthPerParticipant, heightPerFlow) {
+  flows.forEach((flow, i) => {
+    const { sender, receiver, data } = flow;
+    const x1 = widthPerParticipant * sender + widthPerParticipant/2;
+    const x2 = widthPerParticipant * receiver + widthPerParticipant/2;
+    const y = 70 + i * heightPerFlow;
+
+    if (sender === receiver) {
+      renderSelfArrow(x1, y, data);
+    } else {
+      renderAnimatedArrow(x1, x2, y, data);
+    }
+  });
+}
+
+function renderSelfArrow(x, y, data) {
+  const loop = document.createElement('div');
+  loop.style.position = 'absolute';
+  loop.style.left = (x - 30) + 'px';
+  loop.style.top = (y - 10) + 'px';
+  loop.style.width = '60px';
+  loop.style.height = '36px';
+  loop.style.border = '3px solid #1976d2';
+  loop.style.borderRadius = '50%';
+  loop.style.borderLeft = 'none';
+  loop.style.borderBottom = 'none';
+  loop.style.transform = 'rotate(30deg)';
+  loop.style.zIndex = 4;
+
+  // Arrow head for loop
+  const head = document.createElement('div');
+  head.className = 'arrow-head';
+  head.style.position = 'absolute';
+  head.style.right = '0px';
+  head.style.top = '10px';
+  head.style.transform = 'rotate(45deg)';
+  loop.appendChild(head);
+
+  // Label
+  const label = document.createElement('span');
+  label.className = 'arrow-label';
+  label.textContent = data;
+  label.style.position = 'absolute';
+  label.style.left = '50%';
+  label.style.top = '-22px';
+  label.style.transform = 'translateX(-50%)';
+  loop.appendChild(label);
+
+  diagramDiv.appendChild(loop);
+}
+
+
+function renderAnimatedArrow(x1, x2, y, data, animate = true) {
+  const arrow = createArrowContainer(x1, x2, y);
+  const label = createArrowLabel(x1, x2, data, animate);
+  const line = createArrowLine();
+  const head = createArrowHead(x1, x2);
+
+  if (animate) {
+    const ball = createLightBall(x1, x2);
+    // Remove the ball after animation ends
+    ball.addEventListener('animationend', () => {
+      ball.remove();
+    });
+    arrow.appendChild(ball);
+  }
+
+  arrow.style.flexDirection = x1 < x2 ? 'row' : 'row-reverse';
+  arrow.appendChild(label);
+  arrow.appendChild(line);
+  arrow.appendChild(head);
+
+  diagramDiv.appendChild(arrow);
+}
+
+function createArrowLabel(x1, x2, data, animate) {
+  const label = document.createElement('span');
+  label.className = 'arrow-label';
+  label.textContent = data;
+  label.style.position = 'absolute';
+  label.style.top = '-30px';
+  label.style.width = '80px';
+  label.style.pointerEvents = 'none';
+
+  if (animate) {
+    const duration = Math.abs(x2 - x1) / 120 + 0.6;
+    if (x1 < x2) {
+      label.style.left = '0';
+      label.style.animation = `moveLabelRight ${duration}s linear`;
+    } else {
+      label.style.left = 'calc(100% - 80px)';
+      label.style.animation = `moveLabelLeft ${duration}s linear`;
+    }
+    label.style.animationFillMode = 'forwards';
+  } else {
+    label.style.left = x1 < x2 ? 'calc(100% - 80px)' : '0';
+  }
+
+  return label;
+}
+
+function createLightBall(x1, x2) {
+  const ball = document.createElement('div');
+  ball.className = 'light-ball';
+  const duration = Math.abs(x2 - x1) / 120 + 0.6;
+  if (x1 < x2) {
+    ball.style.left = '0';
+    ball.style.animation = `moveBallRight ${duration}s linear`;
+  } else {
+    ball.style.left = 'calc(100% - 18px)';
+    ball.style.animation = `moveBallLeft ${duration}s linear`;
+  }
+  ball.style.animationFillMode = 'forwards';
+  return ball;
+}
+
+function setDiagramSize(widthPerParticipant, heightPerFlow) {
+  diagramDiv.style.minWidth = (participants.length * widthPerParticipant + 40) + 'px';
+  diagramDiv.style.height = (flows.length * heightPerFlow + 140) + 'px';
+}
+
+// --- ADD ROOT PARTICIPANT ---
+addParticipantBtn.onclick = function() {
+  const name = prompt('Enter participant name:');
+  if (name && name.trim()) {
+    participants.push({ name: name.trim(), children: [] });
+   // renderParticipants();
+    renderParticipantsTree();
+    renderDiagramLevel();
+    renderControls(); 
+  }
+};
+
+// --- ADD FLOW AT CURRENT LEVEL ---
+addFlowBtn.onclick = function() {
+  const data = dataInput.value.trim();
+  const sender = parseInt(senderSelect.value);
+  const receiver = parseInt(receiverSelect.value);
+  if (!data || isNaN(sender) || isNaN(receiver)) {
+    alert('Please enter data and select sender and receiver.');
+    return;
+  }
+  currentFlows[0].push({ sender, receiver, data }); // <--- always use [0]
+  dataInput.value = '';
+  renderDiagramWithLastAnimated();
+  renderFlowPanel();
+};
+// Initial state
+//renderParticipants();
+renderParticipantsTree();
+renderDiagram();
+
+    const playBtn = document.getElementById('playBtn');
+
+playBtn.onclick = function() {
+  playAnimation();
+};
+
+function playAnimation(onAllDone) {
+  diagramDiv.innerHTML = '';
+  const widthPerParticipant = 160;
+  const heightPerFlow = 60;
+
+  const levelParticipants = currentLevel[0];
+  const levelFlows = currentFlows[0];
+
+  renderDiagramParticipantsLevel(levelParticipants, widthPerParticipant);
+
+  let i = 0;
+  function showNextFlow() {
+    if (i >= levelFlows.length) {
+      if (typeof onAllDone === 'function') onAllDone();
+      return;
+    }
+    renderSingleFlowLevel(levelFlows[i], i, widthPerParticipant, heightPerFlow, levelParticipants, () => {
+      i++;
+      showNextFlow();
+    });
+  }
+  showNextFlow();
+  setDiagramSize(widthPerParticipant, heightPerFlow);
+}
+function renderSingleFlow(flow, i, widthPerParticipant, heightPerFlow, onDone) {
+  const { sender, receiver, data } = flow;
+  const x1 = widthPerParticipant * sender + widthPerParticipant / 2;
+  const x2 = widthPerParticipant * receiver + widthPerParticipant / 2;
+  const y = 70 + i * heightPerFlow;
+
+  if (sender === receiver) {
+    renderAnimatedSelfArrow(x1, y, data, onDone);
+  } else {
+    renderAnimatedFlowArrow(x1, x2, y, data, () => {
+      // After animation, check for children
+      const receiverObj = currentLevel[0][receiver];
+      if (receiverObj && receiverObj.children && receiverObj.children.length > 0) {
+        zoomToParticipant(receiver);
+      } else {
+        onDone();
+      }
+    });
+  }
+}
+
+function renderAnimatedSelfArrow(x, y, data, onDone) {
+  renderSelfArrow(x, y, data);
+  setTimeout(onDone, 700);
+}
+
+function renderAnimatedFlowArrow(x1, x2, y, data, onDone) {
+  const arrow = createArrowContainer(x1, x2, y);
+  const label = createAnimatedLabel(x1, x2, data, onDone);
+  const line = createArrowLine();
+  const head = createArrowHead(x1, x2);
+
+  // Add the light ball for animation
+  const ball = createLightBall(x1, x2);
+  // Remove the ball after animation ends
+  ball.addEventListener('animationend', () => {
+    ball.remove();
+  });
+  arrow.appendChild(ball);
+
+  arrow.style.flexDirection = x1 < x2 ? 'row' : 'row-reverse';
+  arrow.appendChild(label);
+  arrow.appendChild(line);
+  arrow.appendChild(head);
+
+  diagramDiv.appendChild(arrow);
+}
+
+
+function createArrowContainer(x1, x2, y) {
+  const arrow = document.createElement('div');
+  arrow.className = 'arrow';
+  arrow.style.top = y + 'px';
+  arrow.style.left = Math.min(x1, x2) + 'px';
+  arrow.style.width = Math.abs(x2 - x1) + 'px';
+  arrow.style.position = 'absolute';
+  arrow.style.display = 'flex';
+  arrow.style.alignItems = 'center';
+  return arrow;
+}
+
+function createAnimatedLabel(x1, x2, data, onDone) {
+  const label = document.createElement('span');
+  label.className = 'arrow-label';
+  label.textContent = data;
+  label.style.position = 'absolute';
+  label.style.top = '-30px';
+  label.style.width = '80px';
+  label.style.pointerEvents = 'none';
+
+  const duration = Math.abs(x2 - x1) / 120 + 0.6;
+  if (x1 < x2) {
+    label.style.left = '0';
+    label.style.animation = `moveLabelRight ${duration}s linear`;
+  } else {
+    label.style.left = 'calc(100% - 80px)';
+    label.style.animation = `moveLabelLeft ${duration}s linear`;
+  }
+  label.style.animationFillMode = 'forwards';
+
+  label.addEventListener('animationend', onDone);
+  return label;
+}
+
+function createArrowLine() {
+  const line = document.createElement('div');
+  line.className = 'arrow-line';
+  line.style.flex = '1';
+  return line;
+}
+
+function createArrowHead(x1, x2) {
+  const head = document.createElement('div');
+  head.className = 'arrow-head';
+  if (x1 > x2) {
+    head.style.transform = 'rotate(180deg)';
+    head.style.marginLeft = '0';
+    head.style.marginRight = '2px';
+  }
+  return head;
+}
+
+// --- ANIMATE ONLY LAST FLOW WHEN ADDED ---
+function renderDiagramWithLastAnimated() {
+  diagramDiv.innerHTML = '';
+  const widthPerParticipant = 160;
+  const heightPerFlow = 60;
+  const levelParticipants = currentLevel[0];
+  const levelFlows = currentFlows[0];
+
+  renderDiagramParticipantsLevel(levelParticipants, widthPerParticipant);
+
+  // Render all but last flow statically
+  for (let i = 0; i < levelFlows.length - 1; i++) {
+    const { sender, receiver, data } = levelFlows[i];
+    const x1 = widthPerParticipant * sender + widthPerParticipant / 2;
+    const x2 = widthPerParticipant * receiver + widthPerParticipant / 2;
+    const y = 70 + i * heightPerFlow;
+    if (sender === receiver) {
+      renderSelfArrow(x1, y, data);
+    } else {
+      renderAnimatedArrow(x1, x2, y, data, false); // static
+    }
+  }
+  // Animate only the last flow
+  if (levelFlows.length > 0) {
+    const i = levelFlows.length - 1;
+    const { sender, receiver, data } = levelFlows[i];
+    const x1 = widthPerParticipant * sender + widthPerParticipant / 2;
+    const x2 = widthPerParticipant * receiver + widthPerParticipant / 2;
+    const y = 70 + i * heightPerFlow;
+    if (sender === receiver) {
+      renderSelfArrow(x1, y, data);
+    } else {
+      renderAnimatedArrow(x1, x2, y, data, true); // animate
+    }
+  }
+  setDiagramSize(widthPerParticipant, heightPerFlow);
+  renderFlowPanel();
+}
+// --- INITIALIZE ---
+//renderParticipants();
+renderParticipantsTree();
+renderDiagramLevel();
+renderControls();
+
+// --- ZOOM IN ---
+function zoomToParticipant(participantIdx, afterZoomCallback) {
+  // Find the participant box DOM element
+  const boxes = diagramDiv.querySelectorAll('.diagram-participant');
+  const box = boxes[participantIdx];
+  if (!box) {
+    // fallback to old zoom if not found
+    fallbackZoom();
+    return;
+  }
+
+  // Get diagram and box positions
+  const diagramRect = diagramDiv.getBoundingClientRect();
+  const boxRect = box.getBoundingClientRect();
+
+  // Calculate center of box relative to diagram
+  const boxCenterX = boxRect.left + boxRect.width / 2 - diagramRect.left;
+  const boxCenterY = boxRect.top + boxRect.height / 2 - diagramRect.top;
+
+  // Calculate scale and translate to center the box
+  const scale = 2.2; // how much to zoom in
+  const diagramCenterX = diagramRect.width / 2;
+  const diagramCenterY = diagramRect.height / 2;
+  const translateX = diagramCenterX - boxCenterX;
+  const translateY = diagramCenterY - boxCenterY;
+
+  // Apply transform to diagram
+  diagramDiv.style.transition = 'transform 0.7s cubic-bezier(.4,2,.6,1)';
+  diagramDiv.style.transformOrigin = `${boxCenterX}px ${boxCenterY}px`;
+  diagramDiv.style.transform = `scale(${scale}) translate(${translateX/scale}px, ${translateY/scale}px)`;
+
+  // Highlight the box
+  box.classList.add('diagram-zoom-target');
+
+  setTimeout(() => {
+    // Reset transform and highlight
+    diagramDiv.style.transition = '';
+    diagramDiv.style.transform = '';
+    box.classList.remove('diagram-zoom-target');
+
+    // Now actually zoom in data-wise
+    const parent = currentLevel[0][participantIdx];
+    const nextParticipants = parent.children;
+    currentLevel.unshift(nextParticipants);
+
+    if (!parent.flows) parent.flows = [];
+    currentFlows.unshift(parent.flows);
+
+    //renderParticipants();
+    renderParticipantsTree();
+    renderDiagramLevel();
+    renderControls();
+    renderBackButton();
+    if (typeof afterZoomCallback === 'function') {
+      afterZoomCallback();
+    }
+  }, 700);
+
+  function fallbackZoom() {
+    diagramDiv.classList.add('diagram-zoom');
+    setTimeout(() => {
+      diagramDiv.classList.remove('diagram-zoom');
+      const parent = currentLevel[0][participantIdx];
+      const nextParticipants = parent.children;
+      currentLevel.unshift(nextParticipants);
+
+      if (!parent.flows) parent.flows = [];
+      currentFlows.unshift(parent.flows);
+
+      //renderParticipants();
+      renderParticipantsTree();
+      renderDiagramLevel();
+      renderControls();
+      renderBackButton();
+      if (typeof afterZoomCallback === 'function') {
+        afterZoomCallback();
+      }
+    }, 700);
+  }
+}
+
+function renderDiagramParticipantsLevel(participants, widthPerParticipant) {
+  participants.forEach((p, idx) => {
+    const box = document.createElement('div');
+    box.className = 'diagram-participant';
+    box.style.left = (widthPerParticipant * idx + widthPerParticipant/2 - 60) + 'px';
+    box.textContent = p.name || p;
+
+    // Add indicator if participant has children
+    if (p.children && p.children.length > 0) {
+      const indicator = document.createElement('span');
+      indicator.textContent = '▼';//'⤵'; // or use '▼', '…', or a folder/box icon
+      indicator.title = 'Has inner components';
+      indicator.style.marginLeft = '6px';
+      indicator.style.fontSize = '18px';
+      indicator.style.color = '#388e3c';
+      indicator.style.verticalAlign = 'middle';
+      box.appendChild(indicator);
+    }
+
+    // Double-click to zoom in if has children
+    if (p.children && p.children.length > 0) {
+      box.style.cursor = 'pointer';
+      box.ondblclick = function(e) {
+        e.stopPropagation();
+        zoomToParticipant(idx);
+      };
+      box.title = 'Double-click to view inner components';
+    }
+
+    diagramDiv.appendChild(box);
+
+    const line = document.createElement('div');
+    line.className = 'lifeline';
+    line.style.left = (widthPerParticipant * idx + widthPerParticipant/2) + 'px';
+    diagramDiv.appendChild(line);
+  });
+}
+
+function renderSingleFlowLevel(flow, i, widthPerParticipant, heightPerFlow, participants, onDone) {
+  const { sender, receiver, data } = flow;
+  const x1 = widthPerParticipant * sender + widthPerParticipant / 2;
+  const x2 = widthPerParticipant * receiver + widthPerParticipant / 2;
+  const y = 70 + i * heightPerFlow;
+
+  if (sender === receiver) {
+    renderAnimatedSelfArrow(x1, y, data, () => {
+      speakText(data);
+      onDone();
+    });
+  } else {
+    renderAnimatedFlowArrow(x1, x2, y, data, () => {
+      speakText(data);
+      const receiverObj = participants[receiver];
+      if (receiverObj && receiverObj.children && receiverObj.children.length > 0) {
+        // Pass the next flow index to zoomToParticipant
+        zoomToParticipant(receiver, () => {
+          playAnimation(() => {
+            // After inner animation, zoom out and continue root animation
+            zoomOutToParent(i + 1); // Pass next index
+          });
+        });
+      } else {
+        onDone();
+      }
+    });
+  }
+}
+
+// --- DIAGRAM RENDERING FOR CURRENT LEVEL ---
+function renderDiagramLevel() {
+  diagramDiv.innerHTML = '';
+  const widthPerParticipant = 160;
+  const heightPerFlow = 60;
+  const levelParticipants = currentLevel[0];
+  const levelFlows = currentFlows[0];
+
+  renderDiagramParticipantsLevel(levelParticipants, widthPerParticipant);
+  // Render all flows statically for this level
+  levelFlows.forEach((flow, i) => {
+    const { sender, receiver, data } = flow;
+    const x1 = widthPerParticipant * sender + widthPerParticipant / 2;
+    const x2 = widthPerParticipant * receiver + widthPerParticipant / 2;
+    const y = 70 + i * heightPerFlow;
+    if (sender === receiver) {
+      renderSelfArrow(x1, y, data);
+    } else {
+      renderAnimatedArrow(x1, x2, y, data, false);
+    }
+  });
+  setDiagramSize(widthPerParticipant, heightPerFlow);
+  renderFlowPanel();
+}
+
+function zoomOutToParent(nextFlowIdx) {
+  diagramDiv.style.transition = 'transform 0.7s cubic-bezier(.4,2,.6,1)';
+  diagramDiv.style.transformOrigin = 'center center';
+  diagramDiv.style.transform = 'scale(0.5)';
+
+  setTimeout(() => {
+    diagramDiv.style.transition = '';
+    diagramDiv.style.transform = '';
+
+    // Always shift if not at root
+    if (currentLevel.length > 1) {
+      currentLevel.shift();
+      currentFlows.shift();
+      renderParticipantsTree();
+      renderDiagramLevel();
+      renderControls();
+      renderBackButton();
+    }
+
+    // Always resume animation at the current level
+    if (typeof nextFlowIdx === 'number') {
+      playAnimationFrom(nextFlowIdx);
+    }
+  }, 700);
+}
+
+let editingFlowIdx = null; // Track which flow is being edited
+
+function renderFlowPanel() {
+  const flowPanel = document.getElementById('flowPanel');
+  const levelParticipants = currentLevel[0];
+  const levelFlows = currentFlows[0];
+
+  flowPanel.innerHTML = `<h3>Data Flows</h3>`;
+  if (!levelFlows.length) {
+    flowPanel.innerHTML += `<div style="color:#888;">No flows defined for this level.</div>`;
+    return;
+  }
+
+  levelFlows.forEach((flow, idx) => {
+    if (editingFlowIdx === idx) {
+      // Inline edit mode
+      flowPanel.innerHTML += `
+        <div class="flow-step">
+          <select id="editSender${idx}">
+            ${levelParticipants.map((p, i) =>
+              `<option value="${i}" ${i === flow.sender ? 'selected' : ''}>${p.name}</option>`
+            ).join('')}
+          </select>
+          <span>→</span>
+          <select id="editReceiver${idx}">
+            ${levelParticipants.map((p, i) =>
+              `<option value="${i}" ${i === flow.receiver ? 'selected' : ''}>${p.name}</option>`
+            ).join('')}
+          </select>
+          <input id="editData${idx}" type="text" value="${flow.data.replace(/"/g, '&quot;')}" style="width:110px; margin:0 6px;" />
+          <button onclick="saveFlowEdit(${idx})">Save</button>
+          <button onclick="cancelFlowEdit()">Cancel</button>
+        </div>
+      `;
+    } else {
+      // Normal view
+      const sender = levelParticipants[flow.sender]?.name || '?';
+      const receiver = levelParticipants[flow.receiver]?.name || '?';
+      flowPanel.innerHTML += `
+        <div class="flow-step">
+          <span><b>${sender}</b> → <b>${receiver}</b>: ${flow.data}</span>
+          <button onclick="editFlow(${idx})">Edit</button>
+          <button onclick="deleteFlow(${idx})">Delete</button>
+        </div>
+      `;
+    }
+  });
+}
+
+window.editFlow = function(idx) {
+  editingFlowIdx = idx;
+  renderFlowPanel();
+};
+
+window.saveFlowEdit = function(idx) {
+  const levelParticipants = currentLevel[0];
+  const levelFlows = currentFlows[0];
+  const sender = parseInt(document.getElementById(`editSender${idx}`).value);
+  const receiver = parseInt(document.getElementById(`editReceiver${idx}`).value);
+  const data = document.getElementById(`editData${idx}`).value.trim();
+  if (isNaN(sender) || isNaN(receiver) || !data) {
+    alert('Please select sender, receiver, and enter data.');
+    return;
+  }
+  levelFlows[idx].sender = sender;
+  levelFlows[idx].receiver = receiver;
+  levelFlows[idx].data = data;
+  editingFlowIdx = null;
+  renderDiagramLevel();
+  renderFlowPanel();
+};
+
+window.cancelFlowEdit = function() {
+  editingFlowIdx = null;
+  renderFlowPanel();
+};
+
+window.saveFlowEdit = function(idx) {
+  const levelParticipants = currentLevel[0];
+  const levelFlows = currentFlows[0];
+  const sender = parseInt(document.getElementById(`editSender${idx}`).value);
+  const receiver = parseInt(document.getElementById(`editReceiver${idx}`).value);
+  const data = document.getElementById(`editData${idx}`).value.trim();
+  if (isNaN(sender) || isNaN(receiver) || !data) {
+    alert('Please select sender, receiver, and enter data.');
+    return;
+  }
+  levelFlows[idx].sender = sender;
+  levelFlows[idx].receiver = receiver;
+  levelFlows[idx].data = data;
+  editingFlowIdx = null;
+  renderDiagramLevel();
+  renderFlowPanel();
+};
+
+window.cancelFlowEdit = function() {
+  editingFlowIdx = null;
+  renderFlowPanel();
+};
+
+window.deleteFlow = function(idx) {
+  const levelFlows = currentFlows[0];
+  if (confirm('Delete this data flow?')) {
+    levelFlows.splice(idx, 1);
+    renderDiagramLevel();
+    renderFlowPanel();
+  }
+};
+
+function speakText(text) {
+  if ('speechSynthesis' in window) {
+    const synth = window.speechSynthesis;
+    let voices = synth.getVoices();
+
+    // Try to pick a high-quality, human-like voice (preferably female/en-US, but fallback if not found)
+    let voice = voices.find(v =>
+      v.lang.startsWith('en') && v.name.toLowerCase().includes('natural')
+    );
+    if (!voice) {
+      voice = voices.find(v =>
+        v.lang.startsWith('en') && v.name.toLowerCase().includes('female')
+      );
+    }
+    if (!voice) {
+      voice = voices.find(v => v.lang.startsWith('en'));
+    }
+    if (!voice && voices.length) {
+      voice = voices[0];
+    }
+
+    const utter = new SpeechSynthesisUtterance(text);
+    if (voice) utter.voice = voice;
+    utter.rate = 1;    // 0.8–1.2 is most natural
+    utter.pitch = 1;   // 0.8–1.2 is most natural
+    utter.volume = 1;
+
+    synth.speak(utter);
+  }
+}
+function playAnimationFrom(startIdx = 0, onAllDone) {
+  diagramDiv.innerHTML = '';
+  const widthPerParticipant = 160;
+  const heightPerFlow = 60;
+
+  const levelParticipants = currentLevel[0];
+  const levelFlows = currentFlows[0];
+
+  renderDiagramParticipantsLevel(levelParticipants, widthPerParticipant);
+
+  // Render all previous flows statically
+  for (let j = 0; j < startIdx; j++) {
+    const { sender, receiver, data } = levelFlows[j];
+    const x1 = widthPerParticipant * sender + widthPerParticipant / 2;
+    const x2 = widthPerParticipant * receiver + widthPerParticipant / 2;
+    const y = 70 + j * heightPerFlow;
+    if (sender === receiver) {
+      renderSelfArrow(x1, y, data);
+    } else {
+      renderAnimatedArrow(x1, x2, y, data, false); // static
+    }
+  }
+
+  // Animate the rest
+  let i = startIdx;
+  function showNextFlow() {
+    if (i >= levelFlows.length) {
+      if (typeof onAllDone === 'function') onAllDone();
+      return;
+    }
+    renderSingleFlowLevel(levelFlows[i], i, widthPerParticipant, heightPerFlow, levelParticipants, () => {
+      i++;
+      showNextFlow();
+    });
+  }
+  showNextFlow();
+  setDiagramSize(widthPerParticipant, heightPerFlow);
+}
+
+function renderParticipantsTree() {
+  const treeDiv = document.getElementById('participantsTree');
+  treeDiv.innerHTML = '';
+  currentLevel[0].forEach((p, idx) => {
+    const col = document.createElement('div');
+    col.className = 'participant-tree-col';
+
+    // Root participant box
+    const rootDiv = document.createElement('div');
+    rootDiv.className = 'participant-root';
+    rootDiv.textContent = p.name;
+
+    // --- X (delete) icon ---
+    const delBtn = document.createElement('span');
+    delBtn.textContent = '×';
+    delBtn.title = 'Delete participant';
+    delBtn.style.position = 'absolute';
+    delBtn.style.top = '2px';
+    delBtn.style.right = '2px';
+    delBtn.style.cursor = 'pointer';
+    delBtn.style.color = '#d32f2f';
+    delBtn.style.fontWeight = 'bold';
+    delBtn.style.fontSize = '18px';
+    delBtn.onclick = function(e) {
+      e.stopPropagation();
+      if (confirm(`Delete participant "${p.name}"?`)) {
+        currentLevel[0].splice(idx, 1);
+        renderParticipantsTree();
+        renderDiagramLevel();
+        renderControls();
+        renderFlowPanel();
+      }
+    };
+    rootDiv.appendChild(delBtn);
+
+    // Add "+" button for inner participant (as before)
+    const addChildBtn = document.createElement('button');
+    addChildBtn.textContent = '+';
+    addChildBtn.title = 'Add inner participant';
+    addChildBtn.style.marginLeft = '8px';
+    addChildBtn.style.background = '#fff';
+    addChildBtn.style.color = '#1976d2';
+    addChildBtn.style.border = '1px solid #90caf9';
+    addChildBtn.style.borderRadius = '50%';
+    addChildBtn.style.width = '22px';
+    addChildBtn.style.height = '22px';
+    addChildBtn.style.cursor = 'pointer';
+    addChildBtn.onclick = function(e) {
+      e.stopPropagation();
+      const name = prompt('Enter inner participant name:');
+      if (name && name.trim()) {
+        if (!p.children) p.children = [];
+        if (!p.flows) p.flows = [];
+        p.children.push({ name: name.trim(), children: [] });
+        renderParticipantsTree();
+        renderDiagramLevel();
+        renderControls();
+      }
+    };
+    rootDiv.appendChild(addChildBtn);
+
+    // Double-click to zoom in if has children
+    if (p.children && p.children.length > 0) {
+      rootDiv.style.cursor = 'pointer';
+      rootDiv.ondblclick = function(e) {
+        e.stopPropagation();
+        zoomToParticipant(idx);
+      };
+      rootDiv.title = 'Double-click to view inner components';
+    }
+
+    col.appendChild(rootDiv);
+
+    // Draw connector and children if any (as before)
+    if (p.children && p.children.length > 0) {
+      const connector = document.createElement('div');
+      connector.className = 'tree-connector';
+      connector.style.height = (p.children.length * 32 + 8) + 'px';
+      col.appendChild(connector);
+
+      const childrenDiv = document.createElement('div');
+      childrenDiv.className = 'participant-children';
+      p.children.forEach(child => {
+        const childDiv = document.createElement('div');
+        childDiv.className = 'participant-child';
+        childDiv.textContent = child.name;
+        childrenDiv.appendChild(childDiv);
+      });
+      col.appendChild(childrenDiv);
+    }
+
+    treeDiv.appendChild(col);
+  });
+}
+
+function renderFlatHierarchyDiagram() {
+  diagramDiv.innerHTML = '';
+  const widthPerParticipant = 120;
+  let xOffset = 20;
+  let flat = [];
+
+  participants.forEach((root, rootIdx) => {
+    // Gather all inner participants for this root (excluding root itself)
+    let innerFlat = [];
+    function collect(p) {
+      if (p.children && p.children.length > 0) {
+        p.children.forEach(child => {
+          innerFlat.push(child);
+          collect(child);
+        });
+      }
+    }
+    collect(root);
+
+    // Box for root and its inner participants
+    const box = document.createElement('div');
+    box.className = 'diagram-hierarchy-root';
+    box.style.position = 'absolute';
+    box.style.left = xOffset + 'px';
+    box.style.top = '30px';
+    box.style.padding = '16px 12px 24px 12px';
+    box.style.display = 'flex';
+    box.style.flexDirection = 'column';
+    box.style.alignItems = 'center';
+    const boxParticipantCount = 1 + innerFlat.length;
+    box.style.minWidth = (boxParticipantCount * widthPerParticipant + 24) + 'px';
+
+    // Title (root participant)
+    const title = document.createElement('div');
+    title.className = 'diagram-hierarchy-participant';
+    title.textContent = root.name;
+    title.style.marginBottom = '10px';
+    box.appendChild(title);
+
+    // Row of participants (only inner participants)
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.gap = '10px';
+    row.style.justifyContent = 'center';
+    row.style.alignItems = 'flex-end';
+    row.style.position = 'relative';
+
+    // Add root to flat array first, then all inner participants
+    flat.push(root);
+
+    // Draw root's lifeline (centered under the box title)
+    const rootLifeline = document.createElement('div');
+    rootLifeline.className = 'lifeline';
+    rootLifeline.style.position = 'absolute';
+    rootLifeline.style.left = (widthPerParticipant / 2) + 'px';
+    rootLifeline.style.top = '40px';
+    rootLifeline.style.height = '160px';
+    rootLifeline.style.background = '#90caf9';
+    rootLifeline.style.width = '2.5px';
+    box.appendChild(rootLifeline);
+
+    // Place root participant visually above the row
+    const rootBox = document.createElement('div');
+    rootBox.className = 'diagram-participant';
+    rootBox.textContent = root.name;
+    rootBox.style.position = 'absolute';
+    rootBox.style.left = '0';
+    rootBox.style.top = '-50px';
+    rootBox.style.width = widthPerParticipant + 'px';
+    rootBox.style.margin = '0 auto';
+    rootBox.style.right = '0';
+    rootBox.style.left = ((boxParticipantCount * widthPerParticipant) / 2 - widthPerParticipant / 2) + 'px';
+    box.appendChild(rootBox);
+
+    innerFlat.forEach((p, idxInRoot) => {
+      const idxGlobal = flat.length;
+      flat.push(p);
+
+      const partBox = document.createElement('div');
+      partBox.className = 'diagram-participant';
+      partBox.textContent = p.name;
+      partBox.style.position = 'relative';
+      partBox.style.left = '0';
+      partBox.style.top = '0';
+      partBox.style.width = widthPerParticipant + 'px';
+      partBox.style.margin = '0';
+
+      // Lifeline for inner participant
+      const line = document.createElement('div');
+      line.className = 'lifeline';
+      line.style.position = 'absolute';
+      line.style.left = (widthPerParticipant / 2) + 'px';
+      line.style.top = '40px';
+      line.style.height = '120px';
+      line.style.background = '#90caf9';
+      line.style.width = '2.5px';
+      partBox.appendChild(line);
+
+      row.appendChild(partBox);
+    });
+
+    box.appendChild(row);
+
+    diagramDiv.appendChild(box);
+    xOffset += boxParticipantCount * widthPerParticipant + 60; // More space between root boxes
+  });
+
+  // Set diagram size
+  diagramDiv.style.minWidth = (flat.length * widthPerParticipant + 80) + 'px';
+  diagramDiv.style.height = '320px';
+
+  // Store for animation
+  diagramDiv._flatParticipants = flat;
+}
+
+
+// Helper for recursive rendering
+function renderHierarchyChild(participant, parentDiv) {
+  const childDiv = document.createElement('div');
+  childDiv.className = 'diagram-hierarchy-child';
+  childDiv.textContent = participant.name;
+  parentDiv.appendChild(childDiv);
+
+  if (participant.children && participant.children.length > 0) {
+    const innerDiv = document.createElement('div');
+    innerDiv.className = 'diagram-hierarchy-inner';
+    participant.children.forEach(child => {
+      renderHierarchyChild(child, innerDiv);
+    });
+    parentDiv.appendChild(innerDiv);
+  }
+}
+function getAllFlowsInOrder(participantsArr, flowsArr, path = []) {
+  let result = [];
+  // Add flows at this level, with their path
+  flowsArr.forEach((flow, idx) => {
+    result.push({ flow, path: [...path], participants: participantsArr });
+  });
+  // For each participant, recurse into children
+  participantsArr.forEach((p, idx) => {
+    if (p.children && p.children.length > 0 && p.flows && p.flows.length > 0) {
+      result = result.concat(getAllFlowsInOrder(p.children, p.flows, [...path, idx]));
+    }
+  });
+  return result;
+}
+
+function playAllFlowsHierarchy() {
+  renderHierarchyDiagram();
+  // Gather all flows in order
+  const allFlows = getAllFlowsInOrder(participants, flows);
+
+  let i = 0;
+  function animateNext() {
+    if (i >= allFlows.length) return;
+    const { flow, participants: levelParticipants } = allFlows[i];
+    // Find the DOM element for sender and receiver (optional: highlight)
+    // Animate arrow between sender and receiver inside the correct root/box
+    // For demo, just animate in the main diagram area
+    animateHierarchyArrow(flow, levelParticipants, () => {
+      i++;
+      animateNext();
+    });
+  }
+  animateNext();
+}
+
+// Simple animation for hierarchy mode (customize as needed)
+function animateHierarchyArrow(flow, levelParticipants, onDone) {
+  // For demo, just show a message or draw a simple arrow
+  // You can enhance this to draw arrows between boxes in the hierarchy
+  const msg = document.createElement('div');
+  msg.style.position = 'absolute';
+  msg.style.left = '50%';
+  msg.style.top = '10px';
+  msg.style.transform = 'translateX(-50%)';
+  msg.style.background = '#fffbe7';
+  msg.style.border = '1.5px solid #1976d2';
+  msg.style.borderRadius = '8px';
+  msg.style.padding = '8px 18px';
+  msg.style.fontWeight = 'bold';
+  msg.style.color = '#1976d2';
+  msg.style.zIndex = 100;
+  msg.textContent = `${levelParticipants[flow.sender]?.name} → ${levelParticipants[flow.receiver]?.name}: ${flow.data}`;
+  diagramDiv.appendChild(msg);
+
+  setTimeout(() => {
+    msg.remove();
+    if (typeof onDone === 'function') onDone();
+  }, 1200);
+}
+document.getElementById('showAllBtn').onclick = function() {
+  renderFlatHierarchyDiagram();
+  playBtn.onclick = playAllFlowsFlat;
+};
+document.getElementById('backToNormalBtn').onclick = function() {
+  renderDiagramLevel();
+  playBtn.onclick = playAnimation;
+};
+
+function flattenParticipantsForBoxes() {
+  let flat = [];
+  participants.forEach(root => {
+    function collect(p) {
+      flat.push(p);
+      if (p.children && p.children.length > 0) {
+        p.children.forEach(collect);
+      }
+    }
+    collect(root);
+  });
+  return flat;
+}
+
+function flattenFlowsForBoxes() {
+  let flat = flattenParticipantsForBoxes();
+  let result = [];
+  function collectFlows(partArr, flowsArr, path = []) {
+    flowsArr.forEach(flow => {
+      // Find absolute sender/receiver indexes in the flat array
+      let senderP = partArr[flow.sender];
+      let receiverP = partArr[flow.receiver];
+      let senderIdx = flat.indexOf(senderP);
+      let receiverIdx = flat.indexOf(receiverP);
+      result.push({ ...flow, senderIdx, receiverIdx });
+    });
+    partArr.forEach(p => {
+      if (p.children && p.children.length > 0 && p.flows && p.flows.length > 0) {
+        collectFlows(p.children, p.flows);
+      }
+    });
+  }
+  collectFlows(participants, flows);
+  return result;
+}
+
+function playAllFlowsFlat() {
+  renderFlatHierarchyDiagram();
+  const flat = flattenParticipantsForBoxes();
+  const allFlows = flattenFlowsForBoxes();
+
+  const widthPerParticipant = 120;
+  const heightPerFlow = 60;
+
+  let i = 0;
+  function animateNext() {
+    if (i >= allFlows.length) return;
+    const { senderIdx, receiverIdx, data } = allFlows[i];
+    const x1 = widthPerParticipant * senderIdx + widthPerParticipant / 2 + 20;
+    const x2 = widthPerParticipant * receiverIdx + widthPerParticipant / 2 + 20;
+    const y = 110 + i * heightPerFlow;
+
+    if (senderIdx === receiverIdx) {
+      renderSelfArrow(x1, y, data);
+      setTimeout(() => {
+        i++;
+        animateNext();
+      }, 900);
+    } else {
+      renderAnimatedArrow(x1, x2, y, data, true);
+      setTimeout(() => {
+        i++;
+        animateNext();
+      }, Math.abs(x2 - x1) / 120 * 1000 + 900);
+    }
+  }
+  animateNext();
+}
+</script>
+</body>
+</html>
